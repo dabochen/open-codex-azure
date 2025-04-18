@@ -22,10 +22,27 @@ async function fetchModels(config: AppConfig): Promise<Array<string>> {
     return [];
   }
   try {
-    const openai = new OpenAI({
+    // For Azure, we use the deployment name as the model
+    if (config.provider === "azure") {
+      return config.model ? [config.model] : [];
+    }
+
+    const openaiConfig: any = {
       apiKey: config.apiKey,
-      baseURL: config.baseURL,
-    });
+      ...(config.baseURL ? { baseURL: config.baseURL } : {}),
+    };
+
+    if (config.provider === "azure") {
+      openaiConfig.azure = {
+        apiVersion: "2024-12-01-preview",
+        deploymentName: config.model,
+      };
+      openaiConfig.defaultHeaders = {
+        "api-key": config.apiKey,
+      };
+    }
+
+    const openai = new OpenAI(openaiConfig);
     const list = await openai.models.list();
     const models: Array<string> = [];
     for await (const model of list as AsyncIterable<{ id?: string }>) {
@@ -105,6 +122,8 @@ export function reportMissingAPIKeyForProvider(provider: string): void {
         : "Please set one of the following environment variables:\n") +
       (() => {
         switch (provider) {
+          case "azure":
+            return `- ${chalk.bold("AZURE_OPENAI_API_KEY")} for Azure OpenAI models\n`;
           case "openai":
             return `- ${chalk.bold("OPENAI_API_KEY")} for OpenAI models\n`;
           case "openrouter":
@@ -119,6 +138,7 @@ export function reportMissingAPIKeyForProvider(provider: string): void {
             return (
               [
                 `- ${chalk.bold("OPENAI_API_KEY")} for OpenAI models`,
+                `- ${chalk.bold("AZURE_OPENAI_API_KEY")} for Azure OpenAI models`,
                 `- ${chalk.bold("OPENROUTER_API_KEY")} for OpenRouter models`,
                 `- ${chalk.bold(
                   "GOOGLE_GENERATIVE_AI_API_KEY",
@@ -130,6 +150,10 @@ export function reportMissingAPIKeyForProvider(provider: string): void {
       `Then re-run this command.\n` +
       (() => {
         switch (provider) {
+          case "azure":
+            return `You can create an Azure OpenAI key in your Azure portal: ${chalk.bold(
+              chalk.underline("https://portal.azure.com"),
+            )}\n`;
           case "openai":
             return `You can create an OpenAI key here: ${chalk.bold(
               chalk.underline("https://platform.openai.com/account/api-keys"),

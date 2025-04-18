@@ -5,7 +5,7 @@
 
 > **Important Note**: This is a fork of the [original OpenAI Codex CLI](https://github.com/openai/codex) with expanded model support and changed installation instructions. The main differences in this fork are:
 >
-> - Support for multiple AI providers (OpenAI, Gemini, OpenRouter, Ollama)
+> - Support for multiple AI providers (OpenAI, Gemini, OpenRouter, Ollama, Azure OpenAI)
 > - Uses the [Chat Completion API instead of the Responses API](https://platform.openai.com/docs/guides/responses-vs-chat-completions) which allows us to support any openai compatible provider and model.
 > - All other functionality remains similar to the original project
 > - You can install this fork globally with `npm i -g open-codex`
@@ -73,6 +73,24 @@ export OPENAI_API_KEY="your-api-key-here"
 
 > **Note:** This command sets the key only for your current terminal session. To make it permanent, add the `export` line to your shell's configuration file (e.g., `~/.zshrc`).
 
+### Azure OpenAI Setup
+
+To use Azure OpenAI, you'll need to set up three environment variables:
+
+```shell
+export AZURE_OPENAI_API_KEY="your-azure-api-key"
+export AZURE_OPENAI_API_ENDPOINT="https://your-resource-name.openai.azure.com"
+export AZURE_OPENAI_API_DEPLOYMENT_NAME="your-model-deployment-name"
+```
+
+Then run with the `azure` provider:
+
+```shell
+open-codex --provider azure
+```
+
+> **Note:** For Azure OpenAI, the deployment name is used as the model name. Make sure your deployment is set up with the appropriate model (e.g., gpt-4, gpt-3.5-turbo).
+
 Run interactively:
 
 ```shell
@@ -103,7 +121,7 @@ files, and iterate – all under version control. In short, it's _chat‑driven
 development_ that understands and executes your repo.
 
 - **Zero setup** — bring your API key and it just works!
-- **Multiple AI providers** — use OpenAI, Gemini, OpenRouter, or Ollama!
+- **Multiple AI providers** — use OpenAI, Gemini, OpenRouter, Ollama, or Azure OpenAI!
 - **Full auto-approval, while safe + secure** by running network-disabled and directory-sandboxed
 - **Multimodal** — pass in screenshots or diagrams to implement features ✨
 
@@ -299,6 +317,7 @@ This fork of Codex supports multiple AI providers:
 - gemini
 - openrouter
 - ollama
+- azure
 
 To use a different provider, set the `provider` key in your config file:
 
@@ -318,11 +337,27 @@ Here's a list of all the providers and their default models:
 | gemini     | GOOGLE_GENERATIVE_AI_API_KEY  | gemini-2.5-pro-preview-03-25 | gemini-2.0-flash           |
 | openrouter | OPENROUTER_API_KEY            | openai/o4-mini               | openai/o3                  |
 | ollama     | Not required                  | User must specify            | User must specify          |
+| azure      | AZURE_OPENAI_API_KEY          | User must specify            | User must specify          |
 
 #### When using an alternative provider, make sure you have the correct environment variables set.
 
 ```bash
+# For Gemini
 export GOOGLE_GENERATIVE_AI_API_KEY="your-gemini-api-key-here"
+
+# For Azure OpenAI
+export AZURE_OPENAI_API_KEY="your-azure-api-key"
+export AZURE_OPENAI_API_ENDPOINT="https://your-resource-name.openai.azure.com"
+export AZURE_OPENAI_API_DEPLOYMENT_NAME="your-model-deployment-name"
+```
+
+For Azure OpenAI, you can also specify the model in your config:
+
+```json
+{
+  "provider": "azure",
+  "model": "your-deployment-name"  // This should match your Azure OpenAI deployment name
+}
 ```
 
 ---

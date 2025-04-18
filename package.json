@@ -6,6 +6,10 @@
     "format:fix": "prettier --write *.json *.md .github/workflows/*.yml"
   },
   "devDependencies": {
+    "@types/chalk": "^0.4.31",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.14.1",
+    "openai": "^4.95.0",
     "prettier": "^3.5.3"
   }
 }

@@ -38,7 +38,9 @@ export let API_KEY = "";
 
 // Gracefully fallback to a provider if we have a missing API key.
 if (!process.env["OPENAI_API_KEY"]) {
-  if (process.env["GOOGLE_GENERATIVE_AI_API_KEY"]) {
+  if (process.env["AZURE_OPENAI_API_KEY"]) {
+    DEFAULT_PROVIDER = "azure";
+  } else if (process.env["GOOGLE_GENERATIVE_AI_API_KEY"]) {
     DEFAULT_PROVIDER = "gemini";
   } else if (process.env["OPENROUTER_API_KEY"]) {
     DEFAULT_PROVIDER = "openrouter";
@@ -47,6 +49,13 @@ if (!process.env["OPENAI_API_KEY"]) {
 
 function getAPIKeyForProviderOrExit(provider: string): string {
   switch (provider) {
+    case "azure":
+      if (process.env["AZURE_OPENAI_API_KEY"]) {
+        return process.env["AZURE_OPENAI_API_KEY"];
+      }
+      reportMissingAPIKeyForProvider(provider);
+      process.exit(1);
+      break;
     case "openai":
       if (process.env["OPENAI_API_KEY"]) {
         return process.env["OPENAI_API_KEY"];
@@ -79,6 +88,9 @@ function getAPIKeyForProviderOrExit(provider: string): string {
 
 function baseURLForProvider(provider: string): string {
   switch (provider) {
+    case "azure":
+      const endpoint = process.env["AZURE_OPENAI_API_ENDPOINT"] || "";
+      return endpoint.endsWith("/") ? endpoint : endpoint + "/";
     case "openai":
       return "https://api.openai.com/v1";
     case "ollama":
@@ -98,6 +110,11 @@ function defaultModelsForProvider(provider: string): {
   fullContext: string;
 } {
   switch (provider) {
+    case "azure":
+      return {
+        agentic: process.env["AZURE_OPENAI_API_DEPLOYMENT_NAME"] || "o4-mini",
+        fullContext: process.env["AZURE_OPENAI_API_DEPLOYMENT_NAME"] || "o3",
+      };
     case "openai":
       return {
         agentic: "o4-mini",

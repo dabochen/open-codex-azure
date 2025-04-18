@@ -20,7 +20,7 @@ import {
 } from "../session.js";
 import { handleExecCommand } from "./handle-exec-command.js";
 import { randomUUID } from "node:crypto";
-import OpenAI, { APIConnectionTimeoutError } from "openai";
+import { OpenAI, AzureOpenAI, APIConnectionError } from "openai";
 
 // Wait time before retrying after rate limit errors (ms).
 const RATE_LIMIT_RETRY_WAIT_MS = parseInt(
@@ -63,7 +63,7 @@ export class AgentLoop {
   // type to avoid sprinkling `any` across the implementation while still allowing paths where
   // the OpenAI SDK types may not perfectly match. The `typeof OpenAI` pattern captures the
   // instance shape without resorting to `any`.
-  private oai: OpenAI;
+  private oai: OpenAI | AzureOpenAI;
 
   private onItem: (item: ChatCompletionMessageParam) => void;
   private onLoading: (loading: boolean) => void;
@@ -226,22 +226,45 @@ export class AgentLoop {
     const timeoutMs = OPENAI_TIMEOUT_MS;
     const apiKey = this.config.apiKey;
     const baseURL = this.config.baseURL;
-    this.oai = new OpenAI({
-      // The OpenAI JS SDK only requires `apiKey` when making requests against
-      // the official API.  When running unit‑tests we stub out all network
-      // calls so an undefined key is perfectly fine.  We therefore only set
-      // the property if we actually have a value to avoid triggering runtime
-      // errors inside the SDK (it validates that `apiKey` is a non‑empty
-      // string when the field is present).
-      ...(apiKey ? { apiKey } : {}),
-      ...(baseURL ? { baseURL } : {}),
-      defaultHeaders: {
-        originator: ORIGIN,
-        version: CLI_VERSION,
-        session_id: this.sessionId,
-      },
-      ...(timeoutMs !== undefined ? { timeout: timeoutMs } : {}),
-    });
+    const provider = this.config.provider;
+
+    if (provider === "azure") {
+      const options = {
+        endpoint: baseURL,
+        apiKey,
+        deployment: this.model,
+        apiVersion: "2024-12-01-preview",
+        defaultHeaders: {
+          originator: ORIGIN,
+          version: CLI_VERSION,
+          session_id: this.sessionId,
+        },
+        ...(timeoutMs !== undefined ? { timeout: timeoutMs } : {}),
+      };
+      console.log("Azure OpenAI Config:", JSON.stringify({
+        endpoint: baseURL,
+        model: this.model,
+        apiVersion: options.apiVersion,
+        deployment: this.model,
+      }, null, 2));
+      this.oai = new AzureOpenAI(options);
+    } else {
+      const openaiConfig: any = {
+        ...(apiKey ? { apiKey } : {}),
+        defaultHeaders: {
+          originator: ORIGIN,
+          version: CLI_VERSION,
+          session_id: this.sessionId,
+        },
+        ...(timeoutMs !== undefined ? { timeout: timeoutMs } : {}),
+      };
+
+      if (baseURL) {
+        openaiConfig.baseURL = baseURL;
+      }
+
+      this.oai = new OpenAI(openaiConfig);
+    }
 
     setSessionId(this.sessionId);
     setCurrentModel(this.model);
@@ -562,25 +585,14 @@ export class AgentLoop {
             });
             break;
           } catch (error) {
-            const isTimeout = error instanceof APIConnectionTimeoutError;
-            // Lazily look up the APIConnectionError class at runtime to
-            // accommodate the test environment's minimal OpenAI mocks which
-            // do not define the class.  Falling back to `false` when the
-            // export is absent ensures the check never throws.
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const ApiConnErrCtor = (OpenAI as any).APIConnectionError as  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              | (new (...args: any) => Error)
-              | undefined;
-            const isConnectionError = ApiConnErrCtor
-              ? error instanceof ApiConnErrCtor
-              : false;
+            const isConnectionError = error instanceof APIConnectionError;
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const errCtx = error as any;
             const status =
               errCtx?.status ?? errCtx?.httpStatus ?? errCtx?.statusCode;
             const isServerError = typeof status === "number" && status >= 500;
             if (
-              (isTimeout || isServerError || isConnectionError) &&
+              (isConnectionError || isServerError) &&
               attempt < MAX_RETRIES
             ) {
               log(
@@ -1002,7 +1014,7 @@ export class AgentLoop {
             ],
           });
         } catch {
-          /* best‑effort */
+          /* best‑effort – emitting the error message is best‑effort */
         }
         this.onLoading(false);
         return;
